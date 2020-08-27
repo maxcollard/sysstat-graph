@@ -9,9 +9,19 @@
     <script src="https://d3js.org/d3.v4.js"></script>
     <script src="https://d3js.org/d3-dsv.v1.min.js"></script>
 
+    <h1>System monitor</h1>
+
     <!-- Create a div where the graph will take place -->
     <h2>CPU</h2>
+    <span class="cpuIdle">Idle.</span> <span class="cpuUser">User.</span> <span class="cpuSystem">System.</span>
     <div id="cpuGraph"></div>
+
+    <h2>Network</h2>
+    <span class="networkRxkb">Received (kB/s).</span> <span class="networkTxkb">Transmitted (kB/s).</span> <span class="networkUtil">Utilization (%).</span>
+    <h3><code>eno1</code> (10 Gb/s connection)</h3>
+    <div id="networkGraphEno1"></div>
+    <h3><code>eno2</code> (Internet)</h3>
+    <div id="networkGraphEno2"></div>
 
     <script>
 
@@ -31,12 +41,12 @@
             ];
 
             let dsv = d3.dsvFormat( ';' );
-            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S UTC' );
+            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S' );
 
             let dataRequest = new XMLHttpRequest();
             dataRequest.onreadystatechange = () => {
                 if ( dataRequest.readyState == XMLHttpRequest.DONE ) {
-                    let cpuData = dsv.parseRows( dataRequest.responseText, (d) => {
+                    let data = dsv.parseRows( dataRequest.responseText, (d) => {
                         // Check to see if this is a commented row
                         if ( d[0][0] == '#' ) {
                             return null;
@@ -57,10 +67,95 @@
                         return dPrime;
                     } );
 
-                    cb( null, cpuData );
+                    cb( null, data );
                 }
             };
             dataRequest.open( 'GET', '/data/sadf-cpu.txt', true );
+            dataRequest.send( null );
+
+        };
+
+        // TODO A lot of duplication
+        function loadNetworkData( cb ) {
+
+            let networkHeaders = [
+                'hostname',
+                'interval',
+                'timestamp',
+                'IFACE',
+                'rxpck/s',
+                'txpck/s',
+                'rxkB/s',
+                'txkB/s',
+                'rxcmp/s',
+                'txcmp/s',
+                'rxmcst/s',
+                '%ifutil'
+            ];
+
+            let dsv = d3.dsvFormat( ';' );
+            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S' );
+
+            let dataRequest = new XMLHttpRequest();
+            dataRequest.onreadystatechange = () => {
+                if ( dataRequest.readyState == XMLHttpRequest.DONE ) {
+                    // TODO Hella fucking code duplication moron
+                    let dataEno1 = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != networkHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        dPrime['IFACE'] = d[3];
+                        if ( dPrime['IFACE'] != 'eno1' ) {
+                            return null;
+                        }
+                        for ( let i = 4; i < networkHeaders.length; i++ ) {
+                            dPrime[networkHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    let dataEno2 = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != networkHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        dPrime['IFACE'] = d[3];
+                        if ( dPrime['IFACE'] != 'eno2' ) {
+                            return null;
+                        }
+                        for ( let i = 4; i < networkHeaders.length; i++ ) {
+                            dPrime[networkHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    let data = {};
+                    data.eno1 = dataEno1;
+                    data.eno2 = dataEno2;
+
+                    cb( null, data );
+                }
+            };
+            dataRequest.open( 'GET', '/data/sadf-network.txt', true );
             dataRequest.send( null );
 
         };
@@ -73,9 +168,24 @@
             left: 60
         };
         let width = 800 - margin.left - margin.right;
-        let height = 200 - margin.top - margin.bottom;
+        let height = 120 - margin.top - margin.bottom;
 
-        let svg = d3.select("#cpuGraph")
+        let cpuSvg = d3.select("#cpuGraph")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+
+        let networkEno1Svg = d3.select("#networkGraphEno1")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+        let networkEno2Svg = d3.select("#networkGraphEno2")
           .append("svg")
             .attr("width", width + margin.left + margin.right)
             .attr("height", height + margin.top + margin.bottom)
@@ -88,50 +198,103 @@
             let xScale = d3.scaleTime()
               .domain( d3.extent( data, d => d.timestamp ) )
               .range( [ 0, width ] );
-            svg.append( 'g' )
+            cpuSvg.append( 'g' )
               .attr( 'transform', 'translate(0,' + height + ')' )
               .call( d3.axisBottom( xScale ) );
 
             var yScale = d3.scaleLinear()
               .domain( [ 0, 100 ] )
               .range( [ height, 0 ] );
-            svg.append( 'g' )
+            cpuSvg.append( 'g' )
               .call( d3.axisLeft( yScale ) );
-            svg.append( 'g' )
+            cpuSvg.append( 'g' )
               .attr( 'transform', 'translate(' + width + ',0)' )
               .call( d3.axisRight( yScale ) );
 
             // %user
-            svg.append( 'path' )
+            cpuSvg.append( 'path' )
               .datum( data )
               .attr( 'fill', 'none' )
-              .attr( 'stroke', 'green' )
-              .attr( 'stroke-width', 2.0 )
+              .attr( 'class', 'cpuUser' )
               .attr( 'd', d3.line()
                                 .x( d => xScale( d.timestamp ) )
                                 .y( d => yScale( d['%user'] ) )
                     )
 
             // %system
-            svg.append( 'path' )
+            cpuSvg.append( 'path' )
               .datum( data )
               .attr( 'fill', 'none' )
-              .attr( 'stroke', 'red' )
-              .attr( 'stroke-width', 2.0 )
+              .attr( 'class', 'cpuSystem' )
               .attr( 'd', d3.line()
                                 .x( d => xScale( d.timestamp ) )
                                 .y( d => yScale( d['%system'] ) )
                     )
 
             // %idle
-            svg.append( 'path' )
+            cpuSvg.append( 'path' )
               .datum( data )
               .attr( 'fill', 'none' )
-              .attr( 'stroke', 'black' )
-              .attr( 'stroke-width', 1.0 )
+              .attr( 'class', 'cpuIdle' )
               .attr( 'd', d3.line()
                                 .x( d => xScale( d.timestamp ) )
                                 .y( d => yScale( d['%idle'] ) )
+                    )
+
+        };
+
+        function drawNetworkData ( svg, data ) {
+
+            let xScale = d3.scaleTime()
+              .domain( d3.extent( data, d => d.timestamp ) )
+              .range( [ 0, width ] );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(0,' + height + ')' )
+              .call( d3.axisBottom( xScale ) );
+
+            var yScaleRaw = d3.scaleLinear()
+              .domain( [ 0, d3.max( [ d3.max( data.map( d => d['rxkB/s'] ) ),
+                                      d3.max( data.map( d => d['txkB/s'] ) ) ] ) * 1.05 ] )
+              .range( [ height, 0 ] );
+            svg.append( 'g' )
+              .call( d3.axisLeft( yScaleRaw ) );
+
+            var yScalePercent = d3.scaleLinear()
+              .domain( [ 0, 100 ] )
+              .range( [ height, 0 ] );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(' + width + ',0)' )
+              .attr( 'class', 'networkUtilAxis' )
+              .call( d3.axisRight( yScalePercent ) );
+
+            // rxkB/s
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'networkRxkb' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScaleRaw( d['rxkB/s'] ) )
+                    )
+
+            // %system
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'networkTxkb' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScaleRaw( d['txkB/s'] ) )
+                    )
+
+            // %idle
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'networkUtil' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScalePercent( d['%ifutil'] ) )
                     )
 
         };
@@ -141,6 +304,14 @@
                 return console.error( err );
             }
             drawCPUData( data );
+        } );
+
+        loadNetworkData( (err, data) => {
+            if ( err ) {
+                return console.error( err );
+            }
+            drawNetworkData( networkEno1Svg, data.eno1 );
+            drawNetworkData( networkEno2Svg, data.eno2 );
         } );
 
     </script>

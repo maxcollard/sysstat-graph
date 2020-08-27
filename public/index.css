@@ -1,2 +1,46 @@
+html {
+    font-family: Arial !important;
+}
+
+h3 code {
+    font-size: 20px;
+}
+
 #graph {
+}
+
+.cpuUser {
+    color: green;
+    stroke: green;
+    stroke-width: 3.0;
+}
+.cpuSystem {
+    color: red;
+    stroke: red;
+    stroke-width: 2.0;
+}
+.cpuIdle {
+    color: black;
+    stroke: black;
+    stroke-width: 1.0;
+}
+
+.networkRxkb {
+    color: blue;
+    stroke: blue;
+    stroke-width: 2.0;
+}
+.networkTxkb {
+    color: orange;
+    stroke: orange;
+    stroke-width: 2.0;
+}
+.networkUtil {
+    color: green;
+    stroke: green;
+    stroke-width: 3.0;
+}
+.networkUtilAxis {
+    stroke: green;
+    stroke-width: 1.0;
 }
