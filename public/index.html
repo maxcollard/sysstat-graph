@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <!-- Load d3.js -->
+    <script src="https://d3js.org/d3.v4.js"></script>
+    <script src="https://d3js.org/d3-dsv.v1.min.js"></script>
+
+    <!-- Create a div where the graph will take place -->
+    <h2>CPU</h2>
+    <div id="cpuGraph"></div>
+
+    <script>
+
+        function loadCPUData ( cb ) {
+
+            let cpuHeaders = [
+                'hostname',
+                'interval',
+                'timestamp',
+                'cpu',
+                '%user',
+                '%nice',
+                '%system',
+                '%iowait',
+                '%steal',
+                '%idle'
+            ];
+
+            let dsv = d3.dsvFormat( ';' );
+            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S UTC' );
+
+            let dataRequest = new XMLHttpRequest();
+            dataRequest.onreadystatechange = () => {
+                if ( dataRequest.readyState == XMLHttpRequest.DONE ) {
+                    let cpuData = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != cpuHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        dPrime['cpu'] = d[3];
+                        for ( let i = 4; i < cpuHeaders.length; i++ ) {
+                            dPrime[cpuHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    cb( null, cpuData );
+                }
+            };
+            dataRequest.open( 'GET', '/data/sadf-cpu.txt', true );
+            dataRequest.send( null );
+
+        };
+
+        // Set up the SVG object we're going to draw on
+        let margin = {
+            top: 10,
+            right: 30,
+            bottom: 30,
+            left: 60
+        };
+        let width = 800 - margin.left - margin.right;
+        let height = 200 - margin.top - margin.bottom;
+
+        let svg = d3.select("#cpuGraph")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+
+        function drawCPUData ( data ) {
+
+            let xScale = d3.scaleTime()
+              .domain( d3.extent( data, d => d.timestamp ) )
+              .range( [ 0, width ] );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(0,' + height + ')' )
+              .call( d3.axisBottom( xScale ) );
+
+            var yScale = d3.scaleLinear()
+              .domain( [ 0, 100 ] )
+              .range( [ height, 0 ] );
+            svg.append( 'g' )
+              .call( d3.axisLeft( yScale ) );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(' + width + ',0)' )
+              .call( d3.axisRight( yScale ) );
+
+            // %user
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'stroke', 'green' )
+              .attr( 'stroke-width', 2.0 )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScale( d['%user'] ) )
+                    )
+
+            // %system
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'stroke', 'red' )
+              .attr( 'stroke-width', 2.0 )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScale( d['%system'] ) )
+                    )
+
+            // %idle
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'stroke', 'black' )
+              .attr( 'stroke-width', 1.0 )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScale( d['%idle'] ) )
+                    )
+
+        };
+
+        loadCPUData( (err, data) => {
+            if ( err ) {
+                return console.error( err );
+            }
+            drawCPUData( data );
+        } );
+
+    </script>
+
+</body>
+
+

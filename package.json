@@ -1,0 +1,22 @@
+{
+  "name": "sysstat-graph",
+  "version": "0.0.1",
+  "description": "",
+  "main": "serve.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maxcollard/sysstat-graph.git"
+  },
+  "author": "Max Collard",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/maxcollard/sysstat-graph/issues"
+  },
+  "homepage": "https://github.com/maxcollard/sysstat-graph#readme",
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
