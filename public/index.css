@@ -6,8 +6,15 @@ h3 code {
     font-size: 20px;
 }
 
-#graph {
+#outerContainer {
+    display: flex;
+    justify-content: center;
 }
+
+#innerContainer {
+    width: 850px;
+}
+
 
 .cpuUser {
     color: green;
@@ -23,6 +30,12 @@ h3 code {
     color: black;
     stroke: black;
     stroke-width: 1.0;
+}
+
+.memoryPercentUsed {
+    color: green;
+    stroke: green;
+    stroke-width: 3.0;
 }
 
 .networkRxkb {
@@ -41,6 +54,26 @@ h3 code {
     stroke-width: 3.0;
 }
 .networkUtilAxis {
+    stroke: green;
+    stroke-width: 1.0;
+}
+
+.ioRead {
+    color: blue;
+    stroke: blue;
+    stroke-width: 2.0;
+}
+.ioWrite {
+    color: orange;
+    stroke: orange;
+    stroke-width: 2.0;
+}
+.ioUtil {
+    color: green;
+    stroke: green;
+    stroke-width: 3.0;
+}
+.ioUtilAxis {
     stroke: green;
     stroke-width: 1.0;
 }

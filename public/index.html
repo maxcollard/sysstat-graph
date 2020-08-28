@@ -9,19 +9,35 @@
     <script src="https://d3js.org/d3.v4.js"></script>
     <script src="https://d3js.org/d3-dsv.v1.min.js"></script>
 
-    <h1>System monitor</h1>
+    <div id="outerContainer">
+        <div id="innerContainer">
+            <h1>System monitor</h1>
 
-    <!-- Create a div where the graph will take place -->
-    <h2>CPU</h2>
-    <span class="cpuIdle">Idle.</span> <span class="cpuUser">User.</span> <span class="cpuSystem">System.</span>
-    <div id="cpuGraph"></div>
+            <!-- Create divs where the graphs will take place -->
 
-    <h2>Network</h2>
-    <span class="networkRxkb">Received (kB/s).</span> <span class="networkTxkb">Transmitted (kB/s).</span> <span class="networkUtil">Utilization (%).</span>
-    <h3><code>eno1</code> (10 Gb/s connection)</h3>
-    <div id="networkGraphEno1"></div>
-    <h3><code>eno2</code> (Internet)</h3>
-    <div id="networkGraphEno2"></div>
+            <h2>CPU</h2>
+            <span class="cpuIdle">Idle (%).</span> <span class="cpuUser">User (%).</span> <span class="cpuSystem">System (%).</span>
+            <div id="cpuGraph"></div>
+
+            <h2>Memory</h2>
+            <span class="memoryPercentUsed">Used (%).</span>
+            <div id="memoryGraph"></div>
+
+            <h2>Storage read/write</h2>
+            <span class="ioRead">Read (sectors/s).</span> <span class="ioWrite">Write (sectors/s).</span> <span class="ioUtil">Utilization (%).</span>
+            <h3><code>sda</code> (OS)</h3>
+            <div id="ioGraphSda"></div>
+            <h3><code>sdb</code> (Data)</h3>
+            <div id="ioGraphSdb"></div>
+
+            <h2>Network</h2>
+            <span class="networkRxkb">Received (kB/s).</span> <span class="networkTxkb">Transmitted (kB/s).</span> <span class="networkUtil">Utilization (%).</span>
+            <h3><code>eno1</code> (10 Gb/s connection)</h3>
+            <div id="networkGraphEno1"></div>
+            <h3><code>eno2</code> (Internet)</h3>
+            <div id="networkGraphEno2"></div>
+        </div>
+    </div>
 
     <script>
 
@@ -71,6 +87,141 @@
                 }
             };
             dataRequest.open( 'GET', '/data/sadf-cpu.txt', true );
+            dataRequest.send( null );
+
+        };
+
+        function loadMemoryData ( cb ) {
+
+            let memoryHeaders = [
+                'hostname',
+                'interval',
+                'timestamp',
+                'kbmemfree',
+                'kbmemused',
+                '%memused',
+                'kbbuffers',
+                'kbcached',
+                'kbcommit',
+                '%commit',
+                'kbactive',
+                'kbinact',
+                'kbdirty'
+            ];
+
+            let dsv = d3.dsvFormat( ';' );
+            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S' );
+
+            let dataRequest = new XMLHttpRequest();
+            dataRequest.onreadystatechange = () => {
+                if ( dataRequest.readyState == XMLHttpRequest.DONE ) {
+                    let data = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != memoryHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        for ( let i = 3; i < memoryHeaders.length; i++ ) {
+                            dPrime[memoryHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    cb( null, data );
+                }
+            };
+            dataRequest.open( 'GET', '/data/sadf-memory.txt', true );
+            dataRequest.send( null );
+
+        };
+
+        function loadIOData ( cb ) {
+
+            let ioHeaders = [
+                'hostname',
+                'interval',
+                'timestamp',
+                'DEV',
+                'tps',
+                'rd_sec/s',
+                'wr_sec/s',
+                'avgrq-sz',
+                'avgqu-sz',
+                'await',
+                'svctm',
+                '%util'
+            ];
+
+            let dsv = d3.dsvFormat( ';' );
+            let timestampParse = d3.timeParse( '%Y-%m-%d %H:%M:%S' );
+
+            let dataRequest = new XMLHttpRequest();
+            dataRequest.onreadystatechange = () => {
+                if ( dataRequest.readyState == XMLHttpRequest.DONE ) {
+                    let dataSda = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != ioHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        dPrime['DEV'] = d[3];
+                        if ( dPrime['DEV'] != 'sda' ) {
+                            return null;
+                        }
+                        for ( let i = 4; i < ioHeaders.length; i++ ) {
+                            dPrime[ioHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    let dataSdb = dsv.parseRows( dataRequest.responseText, (d) => {
+                        // Check to see if this is a commented row
+                        if ( d[0][0] == '#' ) {
+                            return null;
+                        }
+                        // Check if we have all the appropriate data
+                        if ( d.length != ioHeaders.length ) {
+                            return null;
+                        }
+                        // Apply headers
+                        let dPrime = {};
+                        dPrime['hostname'] = d[0];
+                        dPrime['interval'] = +d[1];
+                        dPrime['timestamp'] = timestampParse( d[2] );
+                        dPrime['DEV'] = d[3];
+                        if ( dPrime['DEV'] != 'sdb' ) {
+                            return null;
+                        }
+                        for ( let i = 4; i < ioHeaders.length; i++ ) {
+                            dPrime[ioHeaders[i]] = +d[i];
+                        }
+                        return dPrime;
+                    } );
+
+                    let data = {};
+                    data.sda = dataSda;
+                    data.sdb = dataSdb;
+
+                    cb( null, data );
+                }
+            };
+            dataRequest.open( 'GET', '/data/sadf-readwrite.txt', true );
             dataRequest.send( null );
 
         };
@@ -168,9 +319,32 @@
             left: 60
         };
         let width = 800 - margin.left - margin.right;
-        let height = 120 - margin.top - margin.bottom;
+        let height = 180 - margin.top - margin.bottom;
 
         let cpuSvg = d3.select("#cpuGraph")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+
+        let memorySvg = d3.select("#memoryGraph")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+
+        let ioSdaSvg = d3.select("#ioGraphSda")
+          .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")");
+        let ioSdbSvg = d3.select("#ioGraphSdb")
           .append("svg")
             .attr("width", width + margin.left + margin.right)
             .attr("height", height + margin.top + margin.bottom)
@@ -243,6 +417,92 @@
 
         };
 
+        function drawMemoryData ( data ) {
+
+            let xScale = d3.scaleTime()
+              .domain( d3.extent( data, d => d.timestamp ) )
+              .range( [ 0, width ] );
+            memorySvg.append( 'g' )
+              .attr( 'transform', 'translate(0,' + height + ')' )
+              .call( d3.axisBottom( xScale ) );
+
+            var yScalePercent = d3.scaleLinear()
+              .domain( [ 0, 100 ] )
+              .range( [ height, 0 ] );
+            memorySvg.append( 'g' )
+              .call( d3.axisLeft( yScalePercent ) );
+            memorySvg.append( 'g' )
+              .attr( 'transform', 'translate(' + width + ',0)' )
+              .call( d3.axisRight( yScalePercent ) );
+
+            // %memused
+            memorySvg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'memoryPercentUsed' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScalePercent( d['%memused'] ) )
+                    )
+
+        };
+
+        function drawIOData ( svg, data ) {
+
+            let xScale = d3.scaleTime()
+              .domain( d3.extent( data, d => d.timestamp ) )
+              .range( [ 0, width ] );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(0,' + height + ')' )
+              .call( d3.axisBottom( xScale ) );
+
+            var yScaleRaw = d3.scaleLinear()
+              .domain( [ 0, d3.max( [ d3.max( data.map( d => d['rd_sec/s'] ) ),
+                                      d3.max( data.map( d => d['wr_sec/s'] ) ) ] ) * 1.05 ] )
+              .range( [ height, 0 ] );
+            svg.append( 'g' )
+              .call( d3.axisLeft( yScaleRaw ) );
+
+            var yScalePercent = d3.scaleLinear()
+              .domain( [ 0, 100 ] )
+              .range( [ height, 0 ] );
+            svg.append( 'g' )
+              .attr( 'transform', 'translate(' + width + ',0)' )
+              .attr( 'class', 'ioUtilAxis' )
+              .call( d3.axisRight( yScalePercent ) );
+
+            // rd_sec/s
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'ioRead' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScaleRaw( d['rd_sec/s'] ) )
+                    )
+
+            // wr_sec/s
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'ioWrite' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScaleRaw( d['wr_sec/s'] ) )
+                    )
+
+            // %util
+            svg.append( 'path' )
+              .datum( data )
+              .attr( 'fill', 'none' )
+              .attr( 'class', 'ioUtil' )
+              .attr( 'd', d3.line()
+                                .x( d => xScale( d.timestamp ) )
+                                .y( d => yScalePercent( d['%util'] ) )
+                    )
+
+        };
+
         function drawNetworkData ( svg, data ) {
 
             let xScale = d3.scaleTime()
@@ -277,7 +537,7 @@
                                 .y( d => yScaleRaw( d['rxkB/s'] ) )
                     )
 
-            // %system
+            // txkB/s
             svg.append( 'path' )
               .datum( data )
               .attr( 'fill', 'none' )
@@ -287,7 +547,7 @@
                                 .y( d => yScaleRaw( d['txkB/s'] ) )
                     )
 
-            // %idle
+            // %ifutil
             svg.append( 'path' )
               .datum( data )
               .attr( 'fill', 'none' )
@@ -304,6 +564,21 @@
                 return console.error( err );
             }
             drawCPUData( data );
+        } );
+
+        loadMemoryData( (err, data) => {
+            if ( err ) {
+                return console.error( err );
+            }
+            drawMemoryData( data );
+        } );
+
+        loadIOData( (err, data) => {
+            if ( err ) {
+                return console.error( err );
+            }
+            drawIOData( ioSdaSvg, data.sda );
+            drawIOData( ioSdbSvg, data.sdb );
         } );
 
         loadNetworkData( (err, data) => {
